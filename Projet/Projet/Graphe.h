@@ -1,237 +1,295 @@
 #pragma once
 
-#include <vector>
-
+#include <utility>
+#include "PElement.h"
+#include "Erreur.h"
+#include "Sommet.h"
 #include "Arete.h"
-//Classe template représentant le graphe.
-//S est le type de l'information contenue par les arêtes.
-//T est le type de l'information contenue par les sommets.
-template<class S, class T>
+
+/*
+classe sachant dessiner un graphe
+
+template <class S, class T> class Dessinateur; */
+
+template <class S, class T>
 class Graphe
 {
+protected:
+
+	int prochaineClef;
 private:
-	//Indice de la clé suivante (pour un sommet ou une arête).
-	int cleSuivante;
 
-	void cloneListes(const Graphe & g);
+	Sommet<T> * creeSommet1(const int clef, const T & info);
 
-	void effaceListes();
+	void majProchaineClef(const int clef) { prochaineClef = max(1 + clef, prochaineClef); }
 
-	template<class U>
-	void effaceListe(vector<U> & liste) const;
+	Sommet<T> * creeSommet(const int clef, const T & info) { majProchaineClef(clef); return creeSommet1(clef, info); }
 
+	Arete<S, T> * creeArete1(const int clef, const S & info, Sommet<T> * debut, Sommet<T> * fin);
+
+	Arete<S, T> * creeArete(const int clef, const S & info, Sommet<T> * debut, Sommet<T> * fin)
+	{
+		majProchaineClef(clef);
+		return creeArete1(clef, info, debut, fin);
+	}
+
+	void copie(const Graphe<S, T> & graphe);
+
+	void effaceTout();
 public:
-	//Liste des sommets, arêtes
-	vector<Sommet<T> *> listeSommets;
-	vector<Arete<S, T> *> listeAretes;
 
-	//Constructeur du graphe vide.
-	Graphe();
+	PElement< Sommet<T> > * lSommets; // liste de sommets
+	PElement< Arete<S, T> > * lAretes; // liste d'arêtes
 
-	//Constructeur de copie
-	Graphe(const Graphe<S, T> & graphe);
+	Sommet<T> * creeSommet(const T & info) { return creeSommet1(prochaineClef++, info); }
 
-	virtual ~Graphe();
+	Arete<S, T> * creeArete(const S & info, Sommet<T> * debut, Sommet<T> * fin) { return creeArete1(prochaineClef++, info, debut, fin); }
 
-	const Graphe<S, T> & operator=(const Graphe<S, T> & graphe);
+	Graphe() : prochaineClef(0), lSommets(NULL), lAretes(NULL) {}
 
-	//Détermine le nombre de sommets.
-	int nombreSommets() const;
+	Graphe(const Graphe<S, T> & graphe) : Graphe() { this->copie(graphe); }
 
-	//Détermine le nombre d'arêtes.
-	int nombreAretes() const;
+	const Graphe<S, T> & operator = (const Graphe<S, T> & graphe) { this->effaceTout(); this->copie(graphe); return *this; }
 
-	Sommet<T> * creeSommet(const T & info);
 
-	//Crée une arête joignant 2 sommets debut et fin
-	Arete<S, T> * creeArete(Sommet<T> * debut, Sommet<T> * fin, const S & info);
+	~Graphe() { this->effaceTout(); }
 
-	//Recherche la liste des paires (voisin, arête) adjacentes de sommet dans le graphe.
-	vector<pair<Sommet<T>*, Arete<S, T>*>>* Graphe<S, T>::adjacences(const Sommet<T>* sommet, bool getPred = true, bool getSucc = true) const;
 
-	//Convertit en chaine de caractères
+	int nombreSommets() const { return PElement< Sommet<T> >::taille(lSommets); }
+	int nombreAretes() const { return PElement< Arete<S, T> >::taille(lAretes); }
+
+	PElement< pair< Sommet<T> *, Arete<S, T>* > >  *  adjacences(const Sommet<T> * sommet) const;
+	PElement< Arete<S, T> > *  aretesAdjacentes(const Sommet<T> * sommet) const;
+	PElement< Sommet<T> > *  voisins(const Sommet<T> * sommet) const;
+
+	Arete<S, T> * getAreteParSommets(const Sommet<T> * s1, const Sommet<T> * s2) const;
+
 	operator string() const;
 
-	//Recherche une arête qui relie deux sommets. Retourne l'arête ou NULL s'il n'y en a pas.
-	Arete<S, T> * getAreteParSommets(const Sommet<T> * s1, const Sommet<T> * s2) const;
+	template< class FENETRE>
+	bool dessineToutesAretes(FENETRE & fenetre) const;
+
+	template< class FENETRE>
+	bool dessineTousSommets(FENETRE & fenetre) const;
+
+	template  <class FENETRE>
+	bool dessine(FENETRE & fenetre) const;
 };
 
-template<class S, class T>
-void Graphe<S, T>::cloneListes(const Graphe & g)
+template <class S, class T>
+ostream & operator << (ostream & os, const Graphe<S, T> & gr) { return os << (string)gr; }
+
+template <class S, class T>
+Sommet<T> * Graphe<S, T>::creeSommet1(const int clef, const T & info)
 {
-	//Copie tous les sommets à partir du graphe g
-	for (vector<Sommet<T>*>::const_iterator it = g.listeSommets.cbegin(); it != g.listeSommets.cend(); ++it)
-		listeSommets.push_back(new Sommet<T>(**it));
+	Sommet<T> * sommetCree = new Sommet<T>(clef, info);
+	lSommets = new PElement< Sommet<T> >(sommetCree, lSommets);
 
-	//Copie toutes les arêtes à partir du graphe g
-	for (vector<Arete<S, T>*>::const_iterator it = g.listeAretes.cbegin(); it != g.listeAretes.cend(); ++it)
-	{
-		Arete<S, T> * nouvelleArete = new Arete<S, T>(**it);
-
-		int cleSommetDebut = nouvelleArete->debut->cle;
-		int cleSommetFin = nouvelleArete->fin->cle;
-		nouvelleArete->debut = NULL;
-		nouvelleArete->fin = NULL;
-
-		//Affecte les sommets copiées aux sommets début et fin des arêtes.
-		int trouve = 0;
-		for (vector<Sommet<T>*>::const_iterator it = listeSommets.cbegin(); it != listeSommets.cend() && trouve < 2; ++it)
-		{
-			if (cleSommetDebut == (*it)->cle)
-			{
-				nouvelleArete->debut = *it;
-				trouve++;
-			}
-			else if (cleSommetFin == (*it)->cle)
-			{
-				nouvelleArete->fin = *it;
-				trouve++;
-			}
-		}
-
-		listeAretes.push_back(nouvelleArete);
-	}
-}
-
-template<class S, class T>
-void Graphe<S, T>::effaceListes()
-{
-	effaceListe(listeSommets);
-	effaceListe(listeAretes);
-}
-
-template<class S, class T>
-template<class U>
-void Graphe<S, T>::effaceListe(vector<U> & liste) const
-{
-	for (vector<U>::iterator it = liste.begin(); it != liste.end(); ++it)
-		delete *it;
-	liste.clear();
-}
-
-//Constructeur par défaut
-template<class S, class T>
-Graphe<S, T>::Graphe() : cleSuivante(0), listeSommets(NULL), listeAretes(NULL) { }
-
-//Copie les listes des arêtes et des sommets
-template<class S, class T>
-Graphe<S, T>::Graphe(const Graphe<S, T> & graphe) : cleSuivante(graphe.cleSuivante)
-{
-	cloneListes(graphe);
-}
-
-//Destructeur
-template<class S, class T>
-Graphe<S, T>::~Graphe()
-{
-	effaceListes();
-}
-
-//Operateur =
-template<class S, class T>
-const Graphe<S, T>& Graphe<S, T>::operator=(const Graphe<S, T> & graphe)
-{
-	if (this != &graphe)
-	{
-		effaceListes();
-		cloneListes(graphe);
-		prochaineCle = graphe.prochaineCle;
-	}
-	return *this;
-}
-
-//Détermine le nombre de sommets
-template<class S, class T>
-int Graphe<S, T>::nombreSommets() const
-{
-	return (int)listeSommets.size();
-}
-
-//Détermine le nombre d'arêtes
-template<class S, class T>
-int Graphe<S, T>::nombreAretes() const
-{
-	return (int)listeAretes.size();
-}
-
-//Crée un sommet
-template<class S, class T>
-Sommet<T>* Graphe<S, T>::creeSommet(const T & info)
-{
-	Sommet<T> * sommetCree = new Sommet<T>(cleSuivante++, info);
-	listeSommets.push_back(sommetCree);
 	return sommetCree;
 }
 
-//Crée une arête
-template<class S, class T>
-Arete<S, T>* Graphe<S, T>::creeArete(Sommet<T>* debut, Sommet<T>* fin, const S & info)
+template <class S, class T>
+Arete<S, T> * Graphe<S, T>::creeArete1(const int clef, const S & info, Sommet<T> * debut, Sommet<T> * fin)
 {
-	if (find(listeSommets.cbegin(), listeSommets.cend(), debut) == listeSommets.cend())
-		throw exception("Début d'arête non défini");
-	if (find(listeSommets.cbegin(), listeSommets.cend(), fin) == listeSommets.cend())
-		throw exception("Fin d'arête non définie");
+	if (!PElement< Sommet<T> >::appartient(debut, lSommets)) throw Erreur("début d'arête non défini");
+	if (!PElement< Sommet<T> >::appartient(fin, lSommets)) throw Erreur("fin d'arête non définie");
 
-	Arete<S, T> * nouvelleArete = new Arete<S, T>(cleSuivante++, debut, fin, info);
-	listeAretes.push_back(nouvelleArete);
+	Arete<S, T> *  nouvelleArete = new Arete<S, T>(clef, info, debut, fin);
 
-	debut->degre++;
-	fin->degre++;
+	lAretes = new PElement< Arete<S, T> >(nouvelleArete, lAretes);
 
 	return nouvelleArete;
 }
 
-//Détermine le vecteur d'adjacence
-template<class S, class T>
-vector<pair<Sommet<T>*, Arete<S, T>*>>* Graphe<S, T>::adjacences(const Sommet<T>* sommet, bool getPred = true, bool getSucc = true) const
+
+template <class T>
+class SommetDejaPresentDansLaCopie
 {
-	vector<pair<Sommet<T> *, Arete<S, T> *>> * res = new vector<pair<Sommet<T> *, Arete<S, T> *>>();
-	for (vector<Arete<S, T>*>::const_iterator it = listeAretes.cbegin(); it != listeAretes.cend(); ++it)
-	{
-		if (sommet == (*it)->debut && getSucc)
-			res->push_back(pair<Sommet<T> *, Arete<S, T> *>((*it)->fin, *it));
-		else if (sommet == (*it)->fin && getPred)
-			res->push_back(pair<Sommet<T> *, Arete<S, T> *>((*it)->debut, *it));
+public:
+	const Sommet<T> * s;
+	SommetDejaPresentDansLaCopie(const Sommet<T> * s) :s(s) {}
+	bool operator () (const Sommet<T> * sommet) const { return sommet->clef == s->clef; }
+};
+
+template <class S, class T>
+void Graphe<S, T>::copie(const Graphe<S, T> & graphe)
+{
+	const PElement<Sommet<T>> * pS;
+
+	// -------------- d'abord on recopie les sommets --------------------
+
+	for (pS = graphe.lSommets; pS; pS = pS->s)
+	{									// parcourt les sommets du graphe "graphe" et les crée un par un dans *this en tant que sommets isolés
+		const Sommet<T> * sommet = pS->v;				// sommet courant à recopier
+		this->creeSommet(sommet->clef, sommet->v);		// on crée la copie du sommet courant avec la même clef
 	}
-	return res;
+
+	const PElement<Arete<S, T>> * pA;
+	for (pA = graphe.lAretes; pA; pA = pA->s)	// parcourt les arêtes de l'ancien graphe et les recopie une par une
+	{
+		const Arete<S, T> * a = pA->v;			// arête courante à recopier
+		Sommet<T> * d, *f;						// le début et la fin de la nouvelle arête qui va être créée
+		PElement< Sommet<T> > * p;				// pour retrouver d et f dans la nouvelle liste de sommets grâce aux clefs qui ont été conservées
+
+												// on recherche d dans la nouvelle liste de sommets grâce à sa clef
+		SommetDejaPresentDansLaCopie<T> conditionDebut(a->debut);
+		p = PElement< Sommet<T> >::appartient(lSommets, conditionDebut);
+		d = p->v;
+
+		// on recherche f dans la nouvelle liste de sommets grâce à sa clef
+		SommetDejaPresentDansLaCopie<T> conditionFin(a->fin);
+		p = PElement< Sommet<T> >::appartient(lSommets, conditionFin);
+		f = p->v;
+
+		this->creeArete(a->clef, a->v, d, f);
+	}
 }
 
-//Convertit en chaine de caractères
-template<class S, class T>
+template <class S, class T>
+void Graphe<S, T>::effaceTout()
+{
+	PElement< Arete<S, T>>::efface2(this->lAretes);
+	PElement<Sommet<T> >::efface2(this->lSommets);
+	this->prochaineClef = 0;
+}
+
+template <class S, class T>
+PElement< pair< Sommet<T> *, Arete<S, T>* > >  *  Graphe<S, T>::adjacences(const Sommet<T> * sommet) const
+{
+	const PElement< Arete<S, T> > * l;
+
+	PElement< pair< Sommet<T> *, Arete<S, T>* > > * r;				// pair< Sommet<T> *, Arete<S,T>* >
+
+	for (l = lAretes, r = NULL; l; l = l->s)
+
+		if (sommet == l->v->debut)
+			r = new PElement< pair< Sommet<T> *, Arete<S, T>* > >(new pair< Sommet<T> *, Arete<S, T>* >(l->v->fin, l->v), r);
+		else
+			if (sommet == l->v->fin)
+				r = new PElement< pair< Sommet<T> *, Arete<S, T>* > >(new pair< Sommet<T> *, Arete<S, T>* >(l->v->debut, l->v), r);
+
+	return r;
+}
+
+
+template <class S, class T>
+PElement< Arete<S, T> > *  Graphe<S, T>::aretesAdjacentes(const Sommet<T> * sommet) const
+{
+	PElement< pair< Sommet<T> *, Arete<S, T>* > > * ladj = this->adjacences(sommet);
+	PElement< pair< Sommet<T> *, Arete<S, T>* > > * l;
+
+	PElement< Arete<S, T> > * r;
+
+	for (l = ladj, r = NULL; l; l = l->s)
+		r = new PElement< Arete<S, T> >(l->v->second, r);
+
+	PElement< pair< Sommet<T> *, Arete<S, T>* > >::efface2(ladj);
+
+	return r;
+}
+
+template <class S, class T>
+PElement< Sommet<T> > *  Graphe<S, T>::voisins(const Sommet<T> * sommet) const
+{
+	PElement< pair< Sommet<T> *, Arete<S, T>* > > * ladj = this->adjacences(sommet);
+	PElement< pair< Sommet<T> *, Arete<S, T>* > > * l;
+
+	PElement< Sommet<T> > * r;
+
+	for (l = ladj, r = NULL; l; l = l->s)
+		r = new PElement< Sommet<T> >(l->v->first, r);
+
+	PElement< pair< Sommet<T> *, Arete<S, T>* > >::efface2(ladj);
+
+	return r;
+}
+
+template <class S, class T>
+Arete<S, T> * Graphe<S, T>::getAreteParSommets(const Sommet<T> * s1, const Sommet<T> * s2) const
+{
+	PElement<Arete<S, T> > * l;
+
+	for (l = this->lAretes; l; l = l->s)
+		if (l->v->estEgal(s1, s2))
+			return l->v;
+
+	return NULL;
+}
+
+
+template <class S, class T>
 Graphe<S, T>::operator string() const
 {
 	ostringstream oss;
+	oss << "Graphe( \n";
+	oss << "prochaine clef = " << this->prochaineClef << endl;
+	oss << "nombre de sommets = " << this->nombreSommets() << "\n";
 
-	oss << "Graphe (" << endl;
-	oss << "clé suivante = " << this->cleSuivante << endl;
+	oss << PElement<Sommet<T> >::toString(lSommets, "", "\n", "\n");
 
-	oss << "nombre de sommets = " << this->nombreSommets() << endl;
-	for (vector<Sommet<T>*>::const_iterator it = listeSommets.cbegin(); it != listeSommets.cend(); ++it)
-		oss << **it << endl;
+	oss << "nombre d'arêtes = " << this->nombreAretes() << "\n";
 
-	oss << endl << "nombre d'aretes = " << this->nombreAretes() << endl;
-	for (vector<Arete<S, T>*>::const_iterator it = listeAretes.cbegin(); it != listeAretes.cend(); ++it)
-		oss << **it << endl;
-
+	oss << PElement<Arete<S, T> >::toString(lAretes, "", "\n", "\n");
 	oss << ")";
-
 	return oss.str();
 }
 
 template <class S, class T>
-ostream & operator<<(ostream & os, const Graphe<S, T> & graphe)
+template< class FENETRE>
+bool Graphe<S, T>::dessineToutesAretes(FENETRE & fenetre) const
 {
-	return os << (string)graphe;
+
+	// ------------------------ on dessine les arêtes --------------------------
+
+	PElement< Arete<S, T>> * pA;
+	for (pA = this->lAretes; pA; pA = pA->s)
+		if (!fenetre.dessine(pA->v)) return false; // tente de dessiner puis retourne false en cas d'échec
+
+	return true;
 }
 
-//Cherche une arête qui relie deux sommets, NULL s'il n'y en a pas.
-template<class S, class T>
-Arete<S, T>* Graphe<S, T>::getAreteParSommets(const Sommet<T>* s1, const Sommet<T>* s2) const
+template <class S, class T>
+template< class FENETRE>
+bool Graphe<S, T>::dessineTousSommets(FENETRE & fenetre) const
 {
-	for (vector<Arete<S, T>*>::const_iterator it = listeAretes.cbegin(); it != listeAretes.cend(); ++it)
-	{
-		if ((*it)->relie(s1, s2))
-			return *it;
-	}
-	return NULL;
+
+	// ------------------------ on dessine les sommets --------------------------
+
+	PElement< Sommet<T>> * pS;
+	for (pS = this->lSommets; pS; pS = pS->s)
+		if (!fenetre.dessine(pS->v)) return false;	// tente de dessiner puis retourne false en cas d'échec
+
+	return true;
 }
+
+template <class S, class T>
+template< class FENETRE>
+bool Graphe<S, T>::dessine(FENETRE & fenetre) const
+{
+
+	// ------------------------ on dessine les arêtes --------------------------
+
+	if (!this->dessineToutesAretes(fenetre)) return false;
+
+	// ------------------------ on dessine les sommets --------------------------
+
+	return this->dessineTousSommets(fenetre);
+}
+
+template <class T, class FENETRE>
+bool dessine(const PElement<Sommet<T>> * chemin, FENETRE & fenetre, const unsigned int couleur)
+{
+	if (!(chemin && chemin->s)) // le chemin est vide ou ne contient qu'un sommet : il n'y  a rien à dessiner
+		return true;
+
+	else		// le chemin contient au moins une arête
+	{
+		// on dessine d'abord la 1ère arête
+
+		fenetre.dessine(chemin->v, chemin->s->v, couleur);
+
+		return dessine(chemin->s, fenetre, couleur);		// puis on dessine les arêtes suivantes
+	}
+}
+
+

@@ -4,7 +4,7 @@
 
 //Classe template représentant un sommet d'un graphe.
 template <class T>
-class Sommet : public GElement
+class Sommet : public GElement<T>
 {
 public:
 	int degre;
@@ -12,7 +12,7 @@ public:
 	T info;
 
 	//Construit un sommet du graphe à partir d'une clé unique et d'une information. Le dégré est à 0 par défaut.
-	Sommet(const int cle, const T & info) : GrapheComposant(cle), degre(0), info(info) { }
+	Sommet(const int clef, const T & v) :GElement<T>(clef, v), degre(0) {}
 
 	//Convertit en chaine de caractère
 	operator string() const;
@@ -24,7 +24,7 @@ Sommet<T>::operator string() const
 	ostringstream oss;
 
 	oss << "Sommet (" << endl;
-	oss << GrapheComposant::operator string() << endl;
+	oss << GElement<T>::operator string() << endl;
 	oss << "degre = " << degre << endl;
 	oss << "info = " << info << endl;
 	oss << ")";
